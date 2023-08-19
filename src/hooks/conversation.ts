@@ -28,7 +28,8 @@ const VOCODE_API_URL = "api.vocode.dev";
 const DEFAULT_CHUNK_SIZE = 2048;
 
 export const useConversation = (
-  config: ConversationConfig | SelfHostedConversationConfig
+  config: ConversationConfig | SelfHostedConversationConfig,
+  verbose?: boolean
 ): {
   status: ConversationStatus;
   start: () => Promise<void>;
@@ -55,6 +56,12 @@ export const useConversation = (
   const [active, setActive] = React.useState(true);
   const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
+
+  function logIfVerbose(message: string, ...optionalParams: any[]) {
+    if (verbose) {
+      console.log(message);
+    }
+  }
 
   // get audio context and metadata about user audio
   React.useEffect(() => {
@@ -137,6 +144,7 @@ export const useConversation = (
     if (!recorder || !socket || !audioStream) return;
     recorder.stop();
     audioStream.getTracks().forEach((track) => track.stop());
+    setAudioStream(undefined);
     const stopMessage: StopMessage = {
       type: "websocket_stop",
     };
@@ -275,10 +283,11 @@ export const useConversation = (
         echoCancellation: true,
       };
       if (config.audioDeviceConfig.inputDeviceId) {
-        console.log(
-          "Using input device",
-          config.audioDeviceConfig.inputDeviceId
-        );
+        logIfVerbose(
+            "Using input device",
+            config.audioDeviceConfig.inputDeviceId
+          );
+
         trackConstraints.deviceId = config.audioDeviceConfig.inputDeviceId;
       }
       const currAudioStream = await navigator.mediaDevices.getUserMedia({
@@ -302,20 +311,19 @@ export const useConversation = (
       return;
     }
     const micSettings = audioStream.getAudioTracks()[0].getSettings();
-    console.log(micSettings);
+    logIfVerbose("Microphone settings", micSettings);
     const inputAudioMetadata = {
       samplingRate: micSettings.sampleRate || audioContext.sampleRate,
       audioEncoding: "linear16" as AudioEncoding,
     };
-    console.log("Input audio metadata", inputAudioMetadata);
+    logIfVerbose("Input audio metadata", inputAudioMetadata);
 
     const outputAudioMetadata = {
       samplingRate:
         config.audioDeviceConfig.outputSamplingRate || audioContext.sampleRate,
       audioEncoding: "linear16" as AudioEncoding,
     };
-    console.log("Output audio metadata", inputAudioMetadata);
-
+    logIfVerbose("Output audio metadata", inputAudioMetadata);
     let startMessage: StartMessage | AudioConfigStartMessage;
     if (
       [
@@ -344,8 +352,8 @@ export const useConversation = (
     }
 
     socket.send(stringify(startMessage));
-    console.log("Access to microphone granted");
-    console.log(startMessage);
+    logIfVerbose("Access to microphone granted");
+    logIfVerbose("Sent start message", startMessage);
 
     let recorderToUse = recorder;
     if (recorderToUse && recorderToUse.state === "paused") {
