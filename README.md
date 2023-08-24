@@ -1,3 +1,3 @@
-# Vocode React SDK
+# 讨论 (taolun)
 
-See our [React Quickstart](https://docs.vocode.dev/react-quickstart) for set up!
+fork of [vocode](https://github.com/vocodedev/vocode-react-sdk)
