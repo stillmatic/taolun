@@ -11,7 +11,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "npx tsc",
-    "prepublish": "npx tsc"
+    "prepublish": "npx tsc",
+    "prepare": "npx tsc"
   },
   "keywords": [
     "conversation",
