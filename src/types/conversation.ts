@@ -1,7 +1,7 @@
-import { AgentConfig } from "./vocode/agent";
-import { SynthesizerConfig } from "./vocode/synthesizer";
-import { TranscriberConfig } from "./vocode/transcriber";
-import { AudioEncoding } from "./vocode/audioEncoding";
+import { AgentConfig } from "./taolun/agent";
+import { SynthesizerConfig } from "./taolun/synthesizer";
+import { TranscriberConfig } from "./taolun/transcriber";
+import { AudioEncoding } from "./taolun/audioEncoding";
 
 export type ConversationStatus = "idle" | "connecting" | "connected" | "error";
 

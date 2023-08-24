@@ -13,13 +13,13 @@ import {
   Transcript,
 } from "../types/conversation";
 import { blobToBase64, stringify } from "../utils";
-import { AudioEncoding } from "../types/vocode/audioEncoding";
+import { AudioEncoding } from "../types/taolun/audioEncoding";
 import {
   AudioConfigStartMessage,
   AudioMessage,
   StartMessage,
   StopMessage,
-} from "../types/vocode/websocket";
+} from "../types/taolun/websocket";
 import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
 import { isSafari, isChrome } from "react-device-detect";
 import { Buffer } from "buffer";
