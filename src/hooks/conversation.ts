@@ -281,6 +281,8 @@ export const useConversation = (
       }, 100);
     });
 
+    console.log("Socket ready")
+
     try {
       const trackConstraints: MediaTrackConstraints = {
         echoCancellation: true,
@@ -342,6 +344,7 @@ export const useConversation = (
         outputAudioMetadata
       );
     } else {
+      console.log("Using audio config start message")
       const selfHostedConversationConfig =
         config as SelfHostedConversationConfig;
       startMessage = getAudioConfigStartMessage(
@@ -353,7 +356,7 @@ export const useConversation = (
         selfHostedConversationConfig.subscribeTranscript
       );
     }
-
+    console.log("Sending", startMessage)
     socket.send(stringify(startMessage));
     console.log("Access to microphone granted");
     console.log(startMessage);
@@ -388,7 +391,13 @@ export const useConversation = (
       console.log("Recorder already recording")
       return;
     }
-    recorderToUse.start(timeSlice);
+    try {
+      recorderToUse.start(timeSlice);
+    } catch (error) {
+      console.error(error);
+      stopConversation(error as Error);
+      return;
+    }
   };
 
   return {
