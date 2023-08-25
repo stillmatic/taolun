@@ -283,6 +283,7 @@ export const useConversation = (
 
     console.log("Socket ready")
     console.log("Using config", config)
+    let currAudioStream: MediaStream | undefined;
     try {
       const trackConstraints: MediaTrackConstraints = {
         echoCancellation: true,
@@ -296,7 +297,7 @@ export const useConversation = (
       } else {
         console.warn("No input device specified")
       }
-      const currAudioStream = await navigator.mediaDevices.getUserMedia({
+      currAudioStream = await navigator.mediaDevices.getUserMedia({
         video: false,
         audio: trackConstraints,
       });
@@ -316,11 +317,17 @@ export const useConversation = (
         return;
       }
     }
-    if (!audioStream) {
+    if (!currAudioStream) {
       stopConversation(new Error("No audio stream"));
       return;
     }
-    const micSettings = audioStream.getAudioTracks()[0].getSettings();
+    const audioTracks = currAudioStream.getAudioTracks();
+    console.log("Audio tracks", audioTracks);
+    if (audioTracks.length === 0) {
+      stopConversation(new Error("No audio tracks"));
+      return;
+    }
+    const micSettings = currAudioStream.getAudioTracks()[0].getSettings();
     console.log(micSettings);
     const inputAudioMetadata = {
       samplingRate: micSettings.sampleRate || audioContext.sampleRate,
@@ -371,7 +378,7 @@ export const useConversation = (
     if (recorderToUse && recorderToUse.state === "paused") {
       recorderToUse.resume();
     } else if (!recorderToUse) {
-      recorderToUse = new MediaRecorder(audioStream, {
+      recorderToUse = new MediaRecorder(currAudioStream, {
         mimeType: "audio/wav",
       });
       setRecorder(recorderToUse);
