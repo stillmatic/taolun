@@ -230,10 +230,11 @@ export const useConversation = (
 
     setError(undefined);
     const socket = new WebSocket(backendUrl);
-    let error: Error | undefined;
+    // let error: Error | undefined;
     socket.onerror = (event) => {
       console.error(event);
-      error = new Error("See console for error details");
+      const socketError = new Error("See console for error details");
+      setError(socketError);
     };
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
@@ -260,6 +261,9 @@ export const useConversation = (
           }
           return prev;
         });
+      } else {
+        console.log("Unknown message type", message.type);
+        console.log(message)
       }
     };
     socket.onclose = () => {
