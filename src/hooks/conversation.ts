@@ -21,7 +21,7 @@ import {
   StopMessage,
 } from "../types/taolun/websocket";
 import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
-import { isSafari, isChrome } from "react-device-detect";
+import { isSafari, isChrome, isFirefox } from "react-device-detect";
 import { Buffer } from "buffer";
 
 const VOCODE_API_URL = "api.vocode.dev";
@@ -208,15 +208,21 @@ export const useConversation = (
   });
 
   const startConversation = async () => {
-    if (!audioContext || !audioAnalyser) return;
+    if (!audioContext || !audioAnalyser) {
+      const audioError = new Error("Audio context not initialized");
+      console.log(audioError);
+      stopConversation(audioError);
+      return;
+    } 
     setStatus("connecting");
 
-    if (!isSafari && !isChrome) {
+    if (!isSafari && !isChrome && !isFirefox) {
       stopConversation(new Error("Unsupported browser"));
       return;
     }
 
     if (audioContext.state === "suspended") {
+      console.log("Resuming audio context");
       audioContext.resume();
     }
 
@@ -375,6 +381,7 @@ export const useConversation = (
       // https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/state
       // which is not expected to call `start()` according to:
       // https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/start.
+      console.log("Recorder already recording")
       return;
     }
     recorderToUse.start(timeSlice);
