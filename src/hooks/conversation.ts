@@ -282,7 +282,7 @@ export const useConversation = (
     });
 
     console.log("Socket ready")
-
+    console.log("Using config", config)
     try {
       const trackConstraints: MediaTrackConstraints = {
         echoCancellation: true,
@@ -293,6 +293,8 @@ export const useConversation = (
           config.audioDeviceConfig.inputDeviceId
         );
         trackConstraints.deviceId = config.audioDeviceConfig.inputDeviceId;
+      } else {
+        console.log("No input device specified")
       }
       const currAudioStream = await navigator.mediaDevices.getUserMedia({
         video: false,
