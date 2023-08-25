@@ -294,23 +294,27 @@ export const useConversation = (
         );
         trackConstraints.deviceId = config.audioDeviceConfig.inputDeviceId;
       } else {
-        console.log("No input device specified")
+        console.warn("No input device specified")
       }
       const currAudioStream = await navigator.mediaDevices.getUserMedia({
         video: false,
         audio: trackConstraints,
       });
+      console.log("Got audio stream", currAudioStream);
       setAudioStream(currAudioStream);
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotAllowedError") {
         alert(
           "Allowlist this site at chrome://settings/content/microphone to talk to the bot."
         );
-        error = new Error("Microphone access denied");
+        const micError = new Error("Microphone access denied");
+        console.error(micError);
+        stopConversation(micError);
+      } else {
+        console.error(error);
+        stopConversation(error as Error);
+        return;
       }
-      console.error(error);
-      stopConversation(error as Error);
-      return;
     }
     if (!audioStream) {
       stopConversation(new Error("No audio stream"));
