@@ -56,6 +56,12 @@ export const useConversation = (
   const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
 
+  const logIfVerbose = (...message: any[]) => {
+    if (config.verbose) {
+      console.log(message);
+    }
+  }
+
   // get audio context and metadata about user audio
   React.useEffect(() => {
     const audioContext = new AudioContext();
@@ -210,7 +216,7 @@ export const useConversation = (
   const startConversation = async () => {
     if (!audioContext || !audioAnalyser) {
       const audioError = new Error("Audio context not initialized");
-      console.log(audioError);
+      console.error(audioError);
       stopConversation(audioError);
       return;
     } 
@@ -222,7 +228,7 @@ export const useConversation = (
     }
 
     if (audioContext.state === "suspended") {
-      console.log("Resuming audio context");
+      logIfVerbose("Resuming audio context");
       audioContext.resume();
     }
 
@@ -233,7 +239,7 @@ export const useConversation = (
     // let error: Error | undefined;
     socket.onerror = (event) => {
       console.error(event);
-      const socketError = new Error("See console for error details");
+      const socketError = new Error("Socket error, see console for details");
       setError(socketError);
     };
     socket.onmessage = (event) => {
@@ -243,27 +249,30 @@ export const useConversation = (
       } else if (message.type === "websocket_ready") {
         setStatus("connected");
       } else if (message.type == "websocket_transcript") {
+        const transcriptMsg = message as Transcript;
         setTranscripts((prev) => {
           let last = prev.pop();
           if (last && last.sender === message.sender) {
             prev.push({
-              sender: message.sender,
-              text: last.text + " " + message.text,
+              sender: transcriptMsg.sender,
+              text: last.text + " " + transcriptMsg.text,
+              timestamp: transcriptMsg.timestamp,
             });
           } else {
             if (last) {
               prev.push(last);
             }
             prev.push({
-              sender: message.sender,
-              text: message.text,
+              sender: transcriptMsg.sender,
+              text: transcriptMsg.text,
+              timestamp: transcriptMsg.timestamp,
             });
           }
           return prev;
         });
       } else {
-        console.log("Unknown message type", message.type);
-        console.log(message)
+        console.error("Unknown message type", message.type);
+        logIfVerbose(message)
       }
     };
     socket.onclose = () => {
@@ -281,7 +290,7 @@ export const useConversation = (
       }, 100);
     });
 
-    console.log("Socket ready")
+    logIfVerbose("Socket ready")
     console.log("Using config", config)
     let currAudioStream: MediaStream | undefined;
     try {
@@ -301,7 +310,7 @@ export const useConversation = (
         video: false,
         audio: trackConstraints,
       });
-      console.log("Got audio stream", currAudioStream);
+      logIfVerbose("Got audio stream", currAudioStream);
       setAudioStream(currAudioStream);
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotAllowedError") {
@@ -322,25 +331,25 @@ export const useConversation = (
       return;
     }
     const audioTracks = currAudioStream.getAudioTracks();
-    console.log("Audio tracks", audioTracks);
+    logIfVerbose("Audio tracks", audioTracks);
     if (audioTracks.length === 0) {
       stopConversation(new Error("No audio tracks"));
       return;
     }
     const micSettings = currAudioStream.getAudioTracks()[0].getSettings();
-    console.log(micSettings);
+    logIfVerbose(micSettings);
     const inputAudioMetadata = {
       samplingRate: micSettings.sampleRate || audioContext.sampleRate,
       audioEncoding: "linear16" as AudioEncoding,
     };
-    console.log("Input audio metadata", inputAudioMetadata);
+    logIfVerbose("Input audio metadata", inputAudioMetadata);
 
     const outputAudioMetadata = {
       samplingRate:
         config.audioDeviceConfig.outputSamplingRate || audioContext.sampleRate,
       audioEncoding: "linear16" as AudioEncoding,
     };
-    console.log("Output audio metadata", inputAudioMetadata);
+    logIfVerbose("Output audio metadata", inputAudioMetadata);
 
     let startMessage: StartMessage | AudioConfigStartMessage;
     if (
@@ -357,7 +366,7 @@ export const useConversation = (
         outputAudioMetadata
       );
     } else {
-      console.log("Using audio config start message")
+      logIfVerbose("Using audio config start message")
       const selfHostedConversationConfig =
         config as SelfHostedConversationConfig;
       startMessage = getAudioConfigStartMessage(
@@ -369,10 +378,9 @@ export const useConversation = (
         selfHostedConversationConfig.subscribeTranscript
       );
     }
-    console.log("Sending", startMessage)
+    logIfVerbose("Sending start message", startMessage)
     socket.send(stringify(startMessage));
-    console.log("Access to microphone granted");
-    console.log(startMessage);
+    logIfVerbose("Access to microphone granted");
 
     let recorderToUse = recorder;
     if (recorderToUse && recorderToUse.state === "paused") {
@@ -401,7 +409,7 @@ export const useConversation = (
       // https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/state
       // which is not expected to call `start()` according to:
       // https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/start.
-      console.log("Recorder already recording")
+      console.error("Recorder already recording")
       return;
     }
     try {

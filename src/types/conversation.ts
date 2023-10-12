@@ -25,6 +25,7 @@ export type ConversationConfig = {
   agentConfig: AgentConfig;
   synthesizerConfig: Omit<SynthesizerConfig, "samplingRate" | "audioEncoding">;
   vocodeConfig: VocodeConfig;
+  verbose?: boolean;
 };
 
 export type SelfHostedConversationConfig = {
@@ -35,6 +36,7 @@ export type SelfHostedConversationConfig = {
   chunkSize?: number;
   downsampling?: number;
   subscribeTranscript?: boolean;
+  verbose?: boolean;
 };
 
 export type AudioMetadata = {
@@ -45,4 +47,5 @@ export type AudioMetadata = {
 export type Transcript = {
   sender: string;
   text: string;
+  timestamp: number;
 };
