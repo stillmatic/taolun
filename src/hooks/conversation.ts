@@ -12,7 +12,7 @@ import {
   SelfHostedConversationConfig,
   Transcript,
 } from "../types/conversation";
-import { blobToBase64, stringify } from "../utils";
+import { blobToBase64, base64BufferToArrayBuffer, stringify } from "../utils";
 import { AudioEncoding } from "../types/taolun/audioEncoding";
 import {
   AudioConfigStartMessage,
@@ -125,9 +125,10 @@ export const useConversation = (
       setProcessing(true);
       const audio = audioQueue.shift();
       audio &&
-        fetch(URL.createObjectURL(new Blob([audio])))
-          .then((response) => response.arrayBuffer())
-          .then(playArrayBuffer);
+        playArrayBuffer(base64BufferToArrayBuffer(audio));
+        // fetch(URL.createObjectURL(new Blob([audio])))
+        //   .then((response) => response.arrayBuffer())
+        //   .then(playArrayBuffer);
     }
   }, [audioQueue, processing]);
 
@@ -251,25 +252,28 @@ export const useConversation = (
       } else if (message.type == "websocket_transcript") {
         const transcriptMsg = message as Transcript;
         setTranscripts((prev) => {
-          let last = prev.pop();
+          const newArray = [...prev]; 
+          let last = newArray.pop();
+          
           if (last && last.sender === message.sender) {
-            prev.push({
+            newArray.push({
               sender: transcriptMsg.sender,
               text: last.text + " " + transcriptMsg.text,
               timestamp: transcriptMsg.timestamp,
             });
           } else {
             if (last) {
-              prev.push(last);
+              newArray.push(last);
             }
-            prev.push({
+            newArray.push({
               sender: transcriptMsg.sender,
               text: transcriptMsg.text,
               timestamp: transcriptMsg.timestamp,
             });
           }
-          return prev;
+          return newArray;
         });
+        
       } else {
         console.error("Unknown message type", message.type);
         logIfVerbose(message)

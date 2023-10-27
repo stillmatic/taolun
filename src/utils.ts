@@ -9,6 +9,17 @@ export const blobToBase64 = (blob: Blob): Promise<string | null> => {
   });
 };
 
+export const base64BufferToArrayBuffer = (buffer: Buffer): ArrayBuffer => {
+  const base64String = buffer.toString('base64');
+  const binaryString = atob(base64String);
+
+  const byteArray = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    byteArray[i] = binaryString.charCodeAt(i);
+  }
+  return byteArray.buffer;
+}
+
 export const stringify = (obj: Object): string => {
   return JSON.stringify(obj, function (key, value) {
     if (value && typeof value === "object") {
