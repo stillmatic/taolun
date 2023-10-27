@@ -12,7 +12,7 @@ import {
   SelfHostedConversationConfig,
   Transcript,
 } from "../types/conversation";
-import { blobToBase64, stringify } from "../utils";
+import { blobToBase64, base64BufferToArrayBuffer, stringify } from "../utils";
 import { AudioEncoding } from "../types/taolun/audioEncoding";
 import {
   AudioConfigStartMessage,
@@ -125,9 +125,10 @@ export const useConversation = (
       setProcessing(true);
       const audio = audioQueue.shift();
       audio &&
-        fetch(URL.createObjectURL(new Blob([audio])))
-          .then((response) => response.arrayBuffer())
-          .then(playArrayBuffer);
+        playArrayBuffer(base64BufferToArrayBuffer(audio));
+        // fetch(URL.createObjectURL(new Blob([audio])))
+        //   .then((response) => response.arrayBuffer())
+        //   .then(playArrayBuffer);
     }
   }, [audioQueue, processing]);
 
