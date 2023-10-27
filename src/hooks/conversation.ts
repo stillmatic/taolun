@@ -251,25 +251,28 @@ export const useConversation = (
       } else if (message.type == "websocket_transcript") {
         const transcriptMsg = message as Transcript;
         setTranscripts((prev) => {
-          let last = prev.pop();
+          const newArray = [...prev]; 
+          let last = newArray.pop();
+          
           if (last && last.sender === message.sender) {
-            prev.push({
+            newArray.push({
               sender: transcriptMsg.sender,
               text: last.text + " " + transcriptMsg.text,
               timestamp: transcriptMsg.timestamp,
             });
           } else {
             if (last) {
-              prev.push(last);
+              newArray.push(last);
             }
-            prev.push({
+            newArray.push({
               sender: transcriptMsg.sender,
               text: transcriptMsg.text,
               timestamp: transcriptMsg.timestamp,
             });
           }
-          return prev;
+          return newArray;
         });
+        
       } else {
         console.error("Unknown message type", message.type);
         logIfVerbose(message)
