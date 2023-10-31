@@ -198,7 +198,9 @@ export const useConversation = (
     chunkSize: number | undefined,
     downsampling: number | undefined,
     conversationId: string | undefined,
-    subscribeTranscript: boolean | undefined
+    subscribeTranscript: boolean | undefined,
+    firstMessage: string | undefined,
+    systemPrompt: string | undefined
   ): AudioConfigStartMessage => ({
     type: "websocket_audio_config_start",
     inputAudioConfig: {
@@ -213,6 +215,8 @@ export const useConversation = (
     },
     conversationId,
     subscribeTranscript,
+    firstMessage,
+    systemPrompt,
   });
 
   const startConversation = async () => {
@@ -377,7 +381,9 @@ export const useConversation = (
         selfHostedConversationConfig.chunkSize,
         selfHostedConversationConfig.downsampling,
         selfHostedConversationConfig.conversationId,
-        selfHostedConversationConfig.subscribeTranscript
+        selfHostedConversationConfig.subscribeTranscript,
+        selfHostedConversationConfig.firstMessage,
+        selfHostedConversationConfig.systemPrompt
       );
     }
     logIfVerbose("Sending start message", startMessage)

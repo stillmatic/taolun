@@ -21,6 +21,9 @@ export interface StartMessage extends WebSocketMessage {
   agentConfig: AgentConfig;
   synthesizerConfig: SynthesizerConfig;
   conversationId?: string;
+
+  firstMessage?: string;
+  systemPrompt?: string;
 }
 
 export interface InputAudioConfig {
@@ -41,6 +44,9 @@ export interface AudioConfigStartMessage extends WebSocketMessage {
   outputAudioConfig: OutputAudioConfig;
   conversationId?: string;
   subscribeTranscript?: boolean;
+
+  firstMessage?: string;
+  systemPrompt?: string;
 }
 
 export interface AudioMessage extends WebSocketMessage {
