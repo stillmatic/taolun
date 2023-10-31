@@ -37,6 +37,9 @@ export type SelfHostedConversationConfig = {
   downsampling?: number;
   subscribeTranscript?: boolean;
   verbose?: boolean;
+
+  firstMessage?: string;
+  systemPrompt?: string;
 };
 
 export type AudioMetadata = {
