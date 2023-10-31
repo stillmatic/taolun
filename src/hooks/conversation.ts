@@ -389,7 +389,7 @@ export const useConversation = (
     let recorderToUse = recorder;
     if (recorderToUse && recorderToUse.state === "paused") {
       recorderToUse.resume();
-    } else if (!recorderToUse) {
+    } else if (!recorderToUse || recorderToUse.state === "inactive") {
       recorderToUse = new MediaRecorder(currAudioStream, {
         mimeType: "audio/wav",
       });
