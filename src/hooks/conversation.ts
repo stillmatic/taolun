@@ -137,6 +137,7 @@ export const useConversation = (
     setCurrentSpeaker("none");
     if (error) {
       setError(error);
+      console.error(error);
       setStatus("error");
     } else {
       setStatus("idle");
@@ -217,7 +218,6 @@ export const useConversation = (
   const startConversation = async () => {
     if (!audioContext || !audioAnalyser) {
       const audioError = new Error("Audio context not initialized");
-      console.error(audioError);
       stopConversation(audioError);
       return;
     } 
@@ -322,10 +322,8 @@ export const useConversation = (
           "Allowlist this site at chrome://settings/content/microphone to talk to the bot."
         );
         const micError = new Error("Microphone access denied");
-        console.error(micError);
         stopConversation(micError);
       } else {
-        console.error(error);
         stopConversation(error as Error);
         return;
       }
@@ -419,7 +417,6 @@ export const useConversation = (
     try {
       recorderToUse.start(timeSlice);
     } catch (error) {
-      console.error(error);
       stopConversation(error as Error);
       return;
     }
