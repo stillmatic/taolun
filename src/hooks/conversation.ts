@@ -23,9 +23,6 @@ import {
 import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
 import { isSafari, isChrome, isFirefox } from "react-device-detect";
 import { Buffer } from "buffer";
-import { count } from "console";
-import * as fs from "fs";
-import toWav from "audiobuffer-to-wav";
 
 const VOCODE_API_URL = "api.vocode.dev";
 const DEFAULT_CHUNK_SIZE = 2048;
@@ -33,13 +30,6 @@ const DEFAULT_CHUNK_SIZE = 2048;
 const audioContext = new AudioContext();
 const audioAnalyser = audioContext.createAnalyser();
 let nextStartTime = audioContext.currentTime;
-
-const printTime = (msg: string) => {
-  const now = new Date();
-  console.log(
-    `${msg}: ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}.${now.getMilliseconds()}`
-  );
-};
 
 export const useConversation = (
   config: ConversationConfig | SelfHostedConversationConfig
@@ -57,7 +47,6 @@ export const useConversation = (
 } => {
   const [currentSpeaker, setCurrentSpeaker] =
     React.useState<CurrentSpeaker>("none");
-  const [isPlaying, setIsPlaying] = React.useState<Boolean>(false);
   const [recorder, setRecorder] = React.useState<IMediaRecorder>();
   const [socket, setSocket] = React.useState<WebSocket>();
   const [status, setStatus] = React.useState<ConversationStatus>("idle");
@@ -66,13 +55,7 @@ export const useConversation = (
   const [active, setActive] = React.useState(true);
   const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
-  const [audioQueue, setAudioQueue] = React.useState<Buffer[]>([]); // Stateful queue
-  const nextPlayTimeRef = React.useRef(audioContext.currentTime); // Reference to the next play time
   const totalDurationRef = React.useRef(0);
-
-  const [audioStartTime, setAduioStartTime] = React.useState(
-    audioContext.currentTime
-  );
 
   const logIfVerbose = (...message: any[]) => {
     if (config.verbose) {
@@ -102,6 +85,7 @@ export const useConversation = (
     }
   }, [recorder, socket, status, active]);
 
+  // (Cinjon) TODO: This probably doesn't work correctly now.
   React.useEffect(() => {
     if (
       currentSpeaker === "agent" &&
@@ -137,7 +121,26 @@ export const useConversation = (
           const duration = buffer.duration;
           const currentTime = audioContext.currentTime;
           const scheduledTime = Math.max(nextStartTime, currentTime);
+
+          // Use a gain node for a smooth transition
+          const gainNode = audioContext.createGain();
+          gainNode.gain.setValueAtTime(0, scheduledTime);
+          gainNode.gain.linearRampToValueAtTime(1, scheduledTime + 0.1); // Quick fade in
+          source.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
           source.start(scheduledTime);
+
+          // Fade out before the buffer ends to prevent clicks
+          gainNode.gain.setValueAtTime(
+            1,
+            nextStartTime + buffer.duration - 0.1
+          );
+          gainNode.gain.linearRampToValueAtTime(
+            0,
+            nextStartTime + buffer.duration
+          );
+
           nextStartTime = scheduledTime + duration;
           // source.start(currentTotalDuration);
           totalDurationRef.current = nextStartTime;
@@ -147,8 +150,6 @@ export const useConversation = (
   );
 
   const stopConversation = (error?: Error) => {
-    console.log("in stop convo");
-    setAudioQueue([]);
     setCurrentSpeaker("none");
     if (error) {
       setError(error);
@@ -258,78 +259,6 @@ export const useConversation = (
 
     const backendUrl = await getBackendUrl();
 
-    // Function to decode ArrayBuffer to AudioBuffer
-    function decodeAudioArrayBuffer(arrayBuffer, callback) {
-      audioContext.decodeAudioData(arrayBuffer, (audioBuffer) => {
-        callback(audioBuffer);
-      });
-    }
-    let audioChunks: any[] = [];
-    // if (audioChunks.length % 11 == 10) {
-    //   saveAudio(
-    //     mergeAudioBuffers(audioChunks, audioContext),
-    //     "test." + audioChunks.length + ".wav"
-    //   );
-    // }
-
-    function mergeAudioBuffers(audioContext, audioChunks) {
-      let numChannels = Math.max(...audioChunks.map((c) => c.numberOfChannels));
-      let sampleRate = Math.max(...audioChunks.map((c) => c.sampleRate));
-      let totalLength = audioChunks.reduce(
-        (sum, chunk) => sum + chunk.length,
-        0
-      );
-      let outputBuffer = audioContext.createBuffer(
-        numChannels,
-        totalLength,
-        sampleRate
-      );
-
-      let offset = 0;
-      audioChunks.forEach((chunk) => {
-        for (let i = 0; i < numChannels; i++) {
-          outputBuffer.getChannelData(i).set(chunk.getChannelData(i), offset);
-        }
-        offset += chunk.length;
-      });
-
-      return outputBuffer;
-    }
-
-    function bufferToWav(audioBuffer: AudioBuffer) {
-      // Convert an AudioBuffer to a WAV file
-      const wavBuffer = toWav(audioBuffer);
-      return Buffer.from(wavBuffer);
-    }
-
-    function saveDataToWav() {
-      // // Decode Base64 to ArrayBuffer
-      // const audioArrayBuffer = base64BufferToArrayBuffer(
-      //   Buffer.from(base64Data, "base64")
-      // );
-
-      // // Decode ArrayBuffer to AudioBuffer and save
-      // decodeAudioArrayBuffer(audioArrayBuffer, (audioBuffer) => {
-      // audioChunks.push(audioBuffer);
-
-      console.log("audio chnks length: ", audioChunks.length);
-      // When all chunks are received, merge them and save
-      // You need to determine when all chunks have been received
-      const mergedBuffer = mergeAudioBuffers(audioContext, audioChunks);
-      const wavArrayBuffer = bufferToWav(mergedBuffer);
-
-      // Create a Blob from the WAV ArrayBuffer
-      const blob = new Blob([wavArrayBuffer], { type: "audio/wav" });
-
-      // Create a link element to download the Blob
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "audio.wav";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
     setError(undefined);
     const socket = new WebSocket(backendUrl);
     // let error: Error | undefined;
@@ -338,19 +267,12 @@ export const useConversation = (
       const socketError = new Error("Socket error, see console for details");
       setError(socketError);
     };
-    // (Cinjon) Ok, so I just tested it and the chunks that are got here are
-    // great. The only issue really is the timing.
+
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.type === "websocket_audio") {
         const audio = Buffer.from(message.data, "base64");
         const audioArrayBuffer = base64BufferToArrayBuffer(audio);
-        // decodeAudioArrayBuffer(audioArrayBuffer, (audioBuffer) => {
-        //   audioChunks.push(audioBuffer);
-        //   if (audioChunks.length % 5 == 4) {
-        //     saveDataToWav();
-        //   }
-        // });
         playArrayBuffer(audioArrayBuffer);
         setCurrentSpeaker("agent");
       } else if (message.type === "websocket_ready") {
