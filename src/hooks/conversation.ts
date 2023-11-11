@@ -27,6 +27,10 @@ import { Buffer } from "buffer";
 const VOCODE_API_URL = "api.vocode.dev";
 const DEFAULT_CHUNK_SIZE = 2048;
 
+const audioContext = new AudioContext();
+const audioAnalyser = audioContext.createAnalyser();
+let nextStartTime = audioContext.currentTime;
+
 export const useConversation = (
   config: ConversationConfig | SelfHostedConversationConfig
 ): {
@@ -41,12 +45,8 @@ export const useConversation = (
   transcripts: Transcript[];
   currentSpeaker: CurrentSpeaker;
 } => {
-  const [audioContext, setAudioContext] = React.useState<AudioContext>();
-  const [audioAnalyser, setAudioAnalyser] = React.useState<AnalyserNode>();
-  const [audioQueue, setAudioQueue] = React.useState<Buffer[]>([]);
   const [currentSpeaker, setCurrentSpeaker] =
     React.useState<CurrentSpeaker>("none");
-  const [processing, setProcessing] = React.useState<Boolean>(false);
   const [recorder, setRecorder] = React.useState<IMediaRecorder>();
   const [socket, setSocket] = React.useState<WebSocket>();
   const [status, setStatus] = React.useState<ConversationStatus>("idle");
@@ -55,20 +55,13 @@ export const useConversation = (
   const [active, setActive] = React.useState(true);
   const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
+  const totalDurationRef = React.useRef(0);
 
   const logIfVerbose = (...message: any[]) => {
     if (config.verbose) {
       console.log(message);
     }
-  }
-
-  // get audio context and metadata about user audio
-  React.useEffect(() => {
-    const audioContext = new AudioContext();
-    setAudioContext(audioContext);
-    const audioAnalyser = audioContext.createAnalyser();
-    setAudioAnalyser(audioAnalyser);
-  }, []);
+  };
 
   const recordingDataListener = ({ data }: { data: Blob }) => {
     blobToBase64(data).then((base64Encoded: string | null) => {
@@ -81,17 +74,31 @@ export const useConversation = (
         socket.send(stringify(audioMessage));
     });
   };
-  
+
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
     if (!recorder || !socket) return;
     if (status === "connected") {
       if (active)
         recorder.addEventListener("dataavailable", recordingDataListener);
-      else
-        recorder.removeEventListener("dataavailable", recordingDataListener);
+      else recorder.removeEventListener("dataavailable", recordingDataListener);
     }
   }, [recorder, socket, status, active]);
+
+  // (Cinjon) TODO: This probably doesn't work correctly now.
+  React.useEffect(() => {
+    if (
+      currentSpeaker === "agent" &&
+      audioContext.currentTime > totalDurationRef.current
+    ) {
+      setCurrentSpeaker("user");
+    } else if (
+      currentSpeaker === "user" &&
+      audioContext.currentTime < totalDurationRef.current
+    ) {
+      setCurrentSpeaker("agent");
+    }
+  }, [currentSpeaker, audioContext]);
 
   // accept wav audio from webpage
   React.useEffect(() => {
@@ -101,9 +108,8 @@ export const useConversation = (
     registerWav().catch(console.error);
   }, []);
 
-  // play audio that is queued
-  React.useEffect(() => {
-    const playArrayBuffer = (arrayBuffer: ArrayBuffer) => {
+  const playArrayBuffer = React.useCallback(
+    (arrayBuffer: ArrayBuffer) => {
       audioContext &&
         audioAnalyser &&
         audioContext.decodeAudioData(arrayBuffer, (buffer) => {
@@ -111,29 +117,39 @@ export const useConversation = (
           source.buffer = buffer;
           source.connect(audioContext.destination);
           source.connect(audioAnalyser);
-          setCurrentSpeaker("agent");
-          source.start(0);
-          source.onended = () => {
-            if (audioQueue.length <= 0) {
-              setCurrentSpeaker("user");
-            }
-            setProcessing(false);
-          };
+
+          const duration = buffer.duration;
+          const currentTime = audioContext.currentTime;
+          const scheduledTime = Math.max(nextStartTime, currentTime);
+
+          // Use a gain node for a smooth transition
+          const gainNode = audioContext.createGain();
+          gainNode.gain.setValueAtTime(0, scheduledTime);
+          gainNode.gain.linearRampToValueAtTime(1, scheduledTime + 0.1); // Quick fade in
+          source.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          source.start(scheduledTime);
+
+          // Fade out before the buffer ends to prevent clicks
+          gainNode.gain.setValueAtTime(
+            1,
+            nextStartTime + buffer.duration - 0.1
+          );
+          gainNode.gain.linearRampToValueAtTime(
+            0,
+            nextStartTime + buffer.duration
+          );
+
+          nextStartTime = scheduledTime + duration;
+          // source.start(currentTotalDuration);
+          totalDurationRef.current = nextStartTime;
         });
-    };
-    if (!processing && audioQueue.length > 0) {
-      setProcessing(true);
-      const audio = audioQueue.shift();
-      audio &&
-        playArrayBuffer(base64BufferToArrayBuffer(audio));
-        // fetch(URL.createObjectURL(new Blob([audio])))
-        //   .then((response) => response.arrayBuffer())
-        //   .then(playArrayBuffer);
-    }
-  }, [audioQueue, processing]);
+    },
+    [audioContext, audioAnalyser]
+  );
 
   const stopConversation = (error?: Error) => {
-    setAudioQueue([]);
     setCurrentSpeaker("none");
     if (error) {
       setError(error);
@@ -142,8 +158,12 @@ export const useConversation = (
     } else {
       setStatus("idle");
     }
-    if (recorder) { recorder.stop() }
-    if (audioStream) { audioStream.getTracks().forEach((track) => track.stop()) }
+    if (recorder) {
+      recorder.stop();
+    }
+    if (audioStream) {
+      audioStream.getTracks().forEach((track) => track.stop());
+    }
     if (socket) {
       const stopMessage: StopMessage = {
         type: "websocket_stop",
@@ -224,7 +244,7 @@ export const useConversation = (
       const audioError = new Error("Audio context not initialized");
       stopConversation(audioError);
       return;
-    } 
+    }
     setStatus("connecting");
 
     if (!isSafari && !isChrome && !isFirefox) {
@@ -247,18 +267,22 @@ export const useConversation = (
       const socketError = new Error("Socket error, see console for details");
       setError(socketError);
     };
+
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.type === "websocket_audio") {
-        setAudioQueue((prev) => [...prev, Buffer.from(message.data, "base64")]);
+        const audio = Buffer.from(message.data, "base64");
+        const audioArrayBuffer = base64BufferToArrayBuffer(audio);
+        playArrayBuffer(audioArrayBuffer);
+        setCurrentSpeaker("agent");
       } else if (message.type === "websocket_ready") {
         setStatus("connected");
       } else if (message.type == "websocket_transcript") {
         const transcriptMsg = message as Transcript;
         setTranscripts((prev) => {
-          const newArray = [...prev]; 
+          const newArray = [...prev];
           let last = newArray.pop();
-          
+
           if (last && last.sender === message.sender) {
             newArray.push({
               sender: transcriptMsg.sender,
@@ -277,10 +301,9 @@ export const useConversation = (
           }
           return newArray;
         });
-        
       } else {
         console.error("Unknown message type", message.type);
-        logIfVerbose(message)
+        logIfVerbose(message);
       }
     };
     socket.onclose = () => {
@@ -298,8 +321,8 @@ export const useConversation = (
       }, 100);
     });
 
-    logIfVerbose("Socket ready")
-    console.log("Using config", config)
+    logIfVerbose("Socket ready");
+    console.log("Using config", config);
     let currAudioStream: MediaStream | undefined;
     try {
       const trackConstraints: MediaTrackConstraints = {
@@ -312,7 +335,7 @@ export const useConversation = (
         );
         trackConstraints.deviceId = config.audioDeviceConfig.inputDeviceId;
       } else {
-        console.warn("No input device specified")
+        console.warn("No input device specified");
       }
       currAudioStream = await navigator.mediaDevices.getUserMedia({
         video: false,
@@ -372,7 +395,7 @@ export const useConversation = (
         outputAudioMetadata
       );
     } else {
-      logIfVerbose("Using audio config start message")
+      logIfVerbose("Using audio config start message");
       const selfHostedConversationConfig =
         config as SelfHostedConversationConfig;
       startMessage = getAudioConfigStartMessage(
@@ -386,7 +409,7 @@ export const useConversation = (
         selfHostedConversationConfig.systemPrompt
       );
     }
-    logIfVerbose("Sending start message", startMessage)
+    logIfVerbose("Sending start message", startMessage);
     socket.send(stringify(startMessage));
     logIfVerbose("Access to microphone granted");
 
@@ -417,7 +440,7 @@ export const useConversation = (
       // https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/state
       // which is not expected to call `start()` according to:
       // https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/start.
-      console.error("Recorder already recording")
+      console.error("Recorder already recording");
       return;
     }
     try {
