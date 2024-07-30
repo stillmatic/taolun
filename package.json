@@ -24,12 +24,15 @@
   "author": "Ajay Raj <ajay@vocode.dev>",
   "license": "MIT",
   "dependencies": {
-    "@types/node": "^20.14.13",
-    "@types/react": "^18.3.3",
     "change-case": "^5.4.4",
     "extendable-media-recorder": "^9.2.9",
     "extendable-media-recorder-wav-encoder": "^7.0.113",
-    "react-device-detect": "^2.2.3",
+    "react-device-detect": "^2.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.13",
+    "@types/react": "^18.3.3",
     "typescript": "^4.9.5"
+
   }
 }
