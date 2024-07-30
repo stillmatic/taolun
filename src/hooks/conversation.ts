@@ -77,7 +77,6 @@ export const useConversation = (
     console.log("Starting PTT");
 
     setIsPTTActive(true);
-    recorder.start();
     const startMessage: PttStartMessage = {
       type: "websocket_ptt_start",
     };
@@ -94,7 +93,6 @@ export const useConversation = (
     console.log("Stopping PTT");
 
     setIsPTTActive(false);
-    recorder.stop();
     const stopMessage: PttStopMessage = {
       type: "websocket_ptt_stop",
     };
@@ -472,7 +470,6 @@ export const useConversation = (
         mimeType: "audio/wav",
       });
       setRecorder(recorderToUse);
-      recorderToUse.pause();
     }
 
     let timeSlice: number;
