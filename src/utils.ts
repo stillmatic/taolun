@@ -1,4 +1,4 @@
-import { snakeCase } from "snake-case";
+import { snakeCase } from "change-case";
 
 export const blobToBase64 = (blob: Blob): Promise<string | null> => {
   return new Promise((resolve, _) => {
