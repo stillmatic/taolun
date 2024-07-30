@@ -9,7 +9,9 @@ export type WebSocketMessageType =
   | "websocket_transcript"
   | "websocket_ready"
   | "websocket_stop"
-  | "websocket_audio_config_start";
+  | "websocket_audio_config_start"
+  | "websocket_ptt_start"
+  | "websocket_ptt_stop";
 
 export interface WebSocketMessage {
   type: WebSocketMessageType;
@@ -67,4 +69,12 @@ export interface ReadyMessage extends WebSocketMessage {
 
 export interface StopMessage extends WebSocketMessage {
   type: "websocket_stop";
+}
+
+export interface PttStartMessage extends WebSocketMessage {
+  type: "websocket_ptt_start";
+} 
+
+export interface PttStopMessage extends WebSocketMessage {
+  type: "websocket_ptt_stop";
 }

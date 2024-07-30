@@ -19,6 +19,8 @@ import {
   AudioMessage,
   StartMessage,
   StopMessage,
+  PttStartMessage,
+  PttStopMessage,
 } from "../types/taolun/websocket";
 import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
 import { isSafari, isChrome, isFirefox } from "react-device-detect";
@@ -37,6 +39,9 @@ export const useConversation = (
   status: ConversationStatus;
   start: () => Promise<void>;
   stop: () => void;
+  startPTT: () => void;
+  stopPTT: () => void;
+  isPTTActive: boolean;
   error: Error | undefined;
   active: boolean;
   setActive: (active: boolean) => void;
@@ -53,6 +58,7 @@ export const useConversation = (
   const [error, setError] = React.useState<Error>();
   const [transcripts, setTranscripts] = React.useState<Transcript[]>([]);
   const [active, setActive] = React.useState(true);
+  const [isPTTActive, setIsPTTActive] = React.useState(false);
   const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
   const totalDurationRef = React.useRef(0);
@@ -63,7 +69,44 @@ export const useConversation = (
     }
   };
 
+  const startPTT = () => {
+    if (status !== "connected" || !recorder || !socket) {
+      console.error("Cannot start PTT: conversation not connected");
+      return;
+    }
+    console.log("Starting PTT");
+
+    setIsPTTActive(true);
+    recorder.start();
+    const startMessage: PttStartMessage = {
+      type: "websocket_ptt_start",
+    };
+    socket?.readyState === WebSocket.OPEN &&
+      socket.send(stringify(startMessage));
+    logIfVerbose("PTT started");
+  };
+
+  const stopPTT = () => {
+    if (!isPTTActive || !recorder) {
+      console.error("Cannot stop PTT: PTT not active");
+      return;
+    }
+    console.log("Stopping PTT");
+
+    setIsPTTActive(false);
+    recorder.stop();
+    const stopMessage: PttStopMessage = {
+      type: "websocket_ptt_stop",
+    };
+    socket?.readyState === WebSocket.OPEN &&
+      socket.send(stringify(stopMessage));
+    logIfVerbose("PTT stopped");
+  };
+
+  // Modify the existing recordingDataListener to respect PTT state
   const recordingDataListener = ({ data }: { data: Blob }) => {
+    if (!isPTTActive) return;
+    
     blobToBase64(data).then((base64Encoded: string | null) => {
       if (!base64Encoded) return;
       const audioMessage: AudioMessage = {
@@ -75,15 +118,22 @@ export const useConversation = (
     });
   };
 
+
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
     if (!recorder || !socket) return;
     if (status === "connected") {
-      if (active)
+      if (active && isPTTActive) {
         recorder.addEventListener("dataavailable", recordingDataListener);
-      else recorder.removeEventListener("dataavailable", recordingDataListener);
+      } else {
+        recorder.removeEventListener("dataavailable", recordingDataListener);
+      }
     }
-  }, [recorder, socket, status, active]);
+    
+    return () => {
+      recorder.removeEventListener("dataavailable", recordingDataListener);
+    };
+  }, [recorder, socket, status, active, isPTTActive]);
 
   // (Cinjon) TODO: This probably doesn't work correctly now.
   React.useEffect(() => {
@@ -163,6 +213,9 @@ export const useConversation = (
     }
     if (audioStream) {
       audioStream.getTracks().forEach((track) => track.stop());
+    }
+    if (isPTTActive) {
+      stopPTT();
     }
     if (socket) {
       const stopMessage: StopMessage = {
@@ -414,13 +467,12 @@ export const useConversation = (
     logIfVerbose("Access to microphone granted");
 
     let recorderToUse = recorder;
-    if (recorderToUse && recorderToUse.state === "paused") {
-      recorderToUse.resume();
-    } else if (!recorderToUse || recorderToUse.state === "inactive") {
+    if (!recorderToUse || recorderToUse.state === "inactive") {
       recorderToUse = new MediaRecorder(currAudioStream, {
         mimeType: "audio/wav",
       });
       setRecorder(recorderToUse);
+      recorderToUse.pause();
     }
 
     let timeSlice: number;
@@ -455,6 +507,9 @@ export const useConversation = (
     status,
     start: startConversation,
     stop: stopConversation,
+    startPTT: startPTT,
+    stopPTT: stopPTT,
+    isPTTActive: isPTTActive,
     error,
     toggleActive,
     active,
