@@ -30,7 +30,7 @@ export default defineConfig({
         lib: {
             entry: resolve(__dirname, 'src/index.ts'),
             name: 'taolun',
-            formats: ['es', 'umd'],
+            formats: ['es'],
             fileName: (format) => `taolun.${format}.js`,
         },
         rollupOptions: {
