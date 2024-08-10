@@ -418,6 +418,11 @@ export const useConversation = (
     // initialize VAD
     const vadOptions: Partial<RealTimeVADOptions> = {
       stream: currAudioStream,
+      ortConfig: (ort) => {
+        ort.env.wasm.wasmPaths = {
+          "ort-wasm-simd.wasm": "/ort-wasm-simd.wasm",
+        }
+      },
       onSpeechStart: () => {
         logIfVerbose("User started speaking");
         setIsUserSpeaking(true);
