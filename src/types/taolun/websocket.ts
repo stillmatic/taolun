@@ -46,7 +46,6 @@ export interface AudioConfigStartMessage extends WebSocketMessage {
   outputAudioConfig: OutputAudioConfig;
   conversationId?: string;
   subscribeTranscript?: boolean;
-  metadata?: Record<string, string>;
 
   firstMessage?: string;
   systemPrompt?: string;

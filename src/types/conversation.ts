@@ -37,6 +37,7 @@ export type SelfHostedConversationConfig = {
   downsampling?: number;
   subscribeTranscript?: boolean;
   verbose?: boolean;
+  metadata?: Record<string, string>;
 
   firstMessage?: string;
   systemPrompt?: string;
