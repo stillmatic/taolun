@@ -1,19 +1,20 @@
 {
   "name": "taolun",
-  "version": "2.4.2",
+  "version": "2.4.3",
   "description": "",
   "homepage": "https://amalgamated.tech",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stillmatic/taolun.git"
   },
-  "main": "./dist/taolun.umd.js",
+  "type": "module",
+  "main": "./dist/taolun.es.js",
   "module": "./dist/taolun.es.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/taolun.es.js",
-      "require": "./dist/taolun.umd.js"
+      "types": "./dist/index.d.ts"
     }
   },
   "files": [
@@ -34,7 +35,6 @@
   "author": "Ajay Raj <ajay@vocode.dev>",
   "license": "MIT",
   "dependencies": {
-    "@rollup/plugin-inject": "^5.0.5",
     "change-case": "^5.4.4",
     "extendable-media-recorder": "^9.2.9",
     "extendable-media-recorder-wav-encoder": "^7.0.113",
@@ -43,7 +43,6 @@
   "devDependencies": {
     "@types/node": "^20.14.13",
     "@types/react": "^18.3.3",
-    "buffer": "^6.0.3",
     "typescript": "^4.9.5",
     "vite": "^4.0.0",
     "vite-plugin-dts": "^2.0.0"
