@@ -434,6 +434,7 @@ export const useConversation = (
 
     try {
       const newVad = await MicVAD.new(vadOptions);
+      logIfVerbose("VAD initialized", vadOptions);
       setVad(newVad);
     } catch (error) {
       console.error("Error initializing VAD:", error);
