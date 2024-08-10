@@ -7,12 +7,22 @@
     "type": "git",
     "url": "git+https://github.com/stillmatic/taolun.git"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/taolun.umd.js",
+  "module": "./dist/taolun.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/taolun.es.js",
+      "require": "./dist/taolun.umd.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "npx tsc",
-    "prepublish": "npx tsc",
-    "prepare": "npx tsc"
+    "build": "vite build",
+    "prepublish": "npm run build",
+    "prepare": "npm run build"
   },
   "keywords": [
     "conversation",
@@ -32,6 +42,13 @@
   "devDependencies": {
     "@types/node": "^20.14.13",
     "@types/react": "^18.3.3",
-    "typescript": "^4.9.5"
+    "typescript": "^4.9.5",
+    "vite": "^4.0.0",
+    "@vitejs/plugin-react": "^3.0.0",
+    "vite-plugin-dts": "^2.0.0"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0"
   }
 }
