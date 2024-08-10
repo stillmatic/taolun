@@ -25,6 +25,7 @@ import {
 import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
 import { isSafari, isChrome, isFirefox } from "react-device-detect";
 import { Buffer } from "buffer";
+import { MicVAD, RealTimeVADOptions } from "@ricky0123/vad-web";
 
 const VOCODE_API_URL = "api.vocode.dev";
 const DEFAULT_CHUNK_SIZE = 2048;
@@ -62,6 +63,9 @@ export const useConversation = (
   const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
   const totalDurationRef = React.useRef(0);
+  const [vad, setVad] = React.useState<MicVAD | null>(null);
+  const [isUserSpeaking, setIsUserSpeaking] = React.useState(false);
+
 
   const logIfVerbose = (...message: any[]) => {
     if (config.verbose) {
@@ -74,7 +78,7 @@ export const useConversation = (
       console.error("Cannot start PTT: conversation not connected");
       return;
     }
-    console.log("Starting PTT");
+    logIfVerbose("Starting PTT");
 
     setIsPTTActive(true);
     const startMessage: PttStartMessage = {
@@ -90,7 +94,7 @@ export const useConversation = (
       console.error("Cannot stop PTT: PTT not active");
       return;
     }
-    console.log("Stopping PTT");
+    logIfVerbose("Stopping PTT");
 
     setIsPTTActive(false);
     const stopMessage: PttStopMessage = {
@@ -101,10 +105,9 @@ export const useConversation = (
     logIfVerbose("PTT stopped");
   };
 
-  // Modify the existing recordingDataListener to respect PTT state
   const recordingDataListener = ({ data }: { data: Blob }) => {
-    if (!isPTTActive) return;
-    
+    if (!isPTTActive || !isUserSpeaking) return;
+
     blobToBase64(data).then((base64Encoded: string | null) => {
       if (!base64Encoded) return;
       const audioMessage: AudioMessage = {
@@ -119,19 +122,21 @@ export const useConversation = (
 
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
-    if (!recorder || !socket) return;
+    if (!recorder || !socket || !vad) return;
     if (status === "connected") {
       if (active && isPTTActive) {
         recorder.addEventListener("dataavailable", recordingDataListener);
       } else {
+        vad.pause();
         recorder.removeEventListener("dataavailable", recordingDataListener);
       }
     }
-    
+
     return () => {
+      vad.pause();
       recorder.removeEventListener("dataavailable", recordingDataListener);
     };
-  }, [recorder, socket, status, active, isPTTActive]);
+  }, [recorder, socket, status, active, isPTTActive, vad]);
 
   // (Cinjon) TODO: This probably doesn't work correctly now.
   React.useEffect(() => {
@@ -410,6 +415,33 @@ export const useConversation = (
       stopConversation(new Error("No audio stream"));
       return;
     }
+    // initialize VAD
+    const vadOptions: Partial<RealTimeVADOptions> = {
+      stream: currAudioStream,
+      onSpeechStart: () => {
+        logIfVerbose("User started speaking");
+        setIsUserSpeaking(true);
+      },
+      onSpeechEnd: () => {
+        logIfVerbose("User stopped speaking");
+        setIsUserSpeaking(false);
+      },
+      onVADMisfire: () => {
+        logIfVerbose("VAD misfire");
+        setIsUserSpeaking(false);
+      },
+    };
+
+    try {
+      const newVad = await MicVAD.new(vadOptions);
+      setVad(newVad);
+    } catch (error) {
+      console.error("Error initializing VAD:", error);
+      stopConversation(error as Error);
+      return;
+    }
+
+
     const audioTracks = currAudioStream.getAudioTracks();
     logIfVerbose("Audio tracks", audioTracks);
     if (audioTracks.length === 0) {
@@ -476,7 +508,7 @@ export const useConversation = (
     if ("transcriberConfig" in startMessage) {
       timeSlice = Math.round(
         (1000 * startMessage.transcriberConfig.chunkSize) /
-          startMessage.transcriberConfig.samplingRate
+        startMessage.transcriberConfig.samplingRate
       );
     } else if ("timeSlice" in config && config.timeSlice) {
       timeSlice = config.timeSlice;
@@ -499,6 +531,12 @@ export const useConversation = (
       return;
     }
   };
+
+  React.useEffect(() => {
+    return () => {
+      vad?.destroy();
+    };
+  }, [vad]);
 
   return {
     status,
