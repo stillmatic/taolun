@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
+import  inject  from '@rollup/plugin-inject';
 
 export default defineConfig({
   plugins: [
@@ -18,6 +19,7 @@ export default defineConfig({
       fileName: (format) => `taolun.${format}.js`,
     },
     rollupOptions: {
+        plugins: [inject({ Buffer: ['Buffer', 'Buffer'] })],
       external: ['react', 'react-dom'],
       output: {
         globals: {

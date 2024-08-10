@@ -34,6 +34,7 @@
   "author": "Ajay Raj <ajay@vocode.dev>",
   "license": "MIT",
   "dependencies": {
+    "@rollup/plugin-inject": "^5.0.5",
     "change-case": "^5.4.4",
     "extendable-media-recorder": "^9.2.9",
     "extendable-media-recorder-wav-encoder": "^7.0.113",
@@ -42,9 +43,10 @@
   "devDependencies": {
     "@types/node": "^20.14.13",
     "@types/react": "^18.3.3",
+    "@vitejs/plugin-react": "^3.0.0",
+    "buffer": "^6.0.3",
     "typescript": "^4.9.5",
     "vite": "^4.0.0",
-    "@vitejs/plugin-react": "^3.0.0",
     "vite-plugin-dts": "^2.0.0"
   },
   "peerDependencies": {
