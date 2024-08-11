@@ -1,4 +1,9 @@
-import { snakeCase } from "change-case";
+function snakeCase(input: string): string {
+  return input
+    .split(/(?=[A-Z])|[\s-_]+/)
+    .map(word => word.toLowerCase())
+    .join('_');
+}
 
 export const blobToBase64 = (blob: Blob): Promise<string | null> => {
   return new Promise((resolve, _) => {
