@@ -11,7 +11,9 @@ export type WebSocketMessageType =
   | "websocket_stop"
   | "websocket_audio_config_start"
   | "websocket_ptt_start"
-  | "websocket_ptt_stop";
+  | "websocket_ptt_stop"
+  | "websocket_vad_started_speaking"
+  | "websocket_vad_stopped_speaking";
 
 export interface WebSocketMessage {
   type: WebSocketMessageType;
@@ -46,7 +48,6 @@ export interface AudioConfigStartMessage extends WebSocketMessage {
   outputAudioConfig: OutputAudioConfig;
   conversationId?: string;
   subscribeTranscript?: boolean;
-  metadata?: Record<string, string>;
 
   firstMessage?: string;
   systemPrompt?: string;
@@ -78,4 +79,12 @@ export interface PttStartMessage extends WebSocketMessage {
 
 export interface PttStopMessage extends WebSocketMessage {
   type: "websocket_ptt_stop";
+}
+
+export interface VADStartedSpeakingMessage extends WebSocketMessage {
+  type: "websocket_vad_started_speaking";
+}
+
+export interface VADStoppedSpeakingMessage extends WebSocketMessage {
+  type: "websocket_vad_stopped_speaking";
 }

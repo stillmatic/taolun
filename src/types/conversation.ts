@@ -31,12 +31,14 @@ export type ConversationConfig = {
 export type SelfHostedConversationConfig = {
   backendUrl: string;
   audioDeviceConfig: AudioDeviceConfig;
+  apiKey?: string;
   conversationId?: string;
   timeSlice?: number;
   chunkSize?: number;
   downsampling?: number;
   subscribeTranscript?: boolean;
   verbose?: boolean;
+  metadata?: Record<string, string>;
 
   firstMessage?: string;
   systemPrompt?: string;
