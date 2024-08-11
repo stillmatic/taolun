@@ -31,6 +31,7 @@ export type ConversationConfig = {
 export type SelfHostedConversationConfig = {
   backendUrl: string;
   audioDeviceConfig: AudioDeviceConfig;
+  apiKey?: string;
   conversationId?: string;
   timeSlice?: number;
   chunkSize?: number;
