@@ -4,7 +4,7 @@ import {
   register,
 } from "extendable-media-recorder";
 import { connect } from "extendable-media-recorder-wav-encoder";
-import React, { useEffect, useReducer, useRef } from "react";
+import React, { useCallback, useEffect, useReducer, useRef } from "react";
 import {
   ConversationConfig,
   ConversationStatus,
@@ -179,7 +179,7 @@ export const useConversation = (
     }
   }, [isUserSpeaking]);
 
-  const startPTT = () => {
+  const startPTT = useCallback(() => {
     if (state.status !== "connected" || !recorder || !socket) {
       console.error("Cannot start PTT: conversation not connected");
       return;
@@ -194,9 +194,9 @@ export const useConversation = (
     socket?.readyState === WebSocket.OPEN &&
       socket.send(stringify(startMessage));
     logIfVerbose("PTT started");
-  };
+  }, [state.status, recorder, socket, vad, logIfVerbose]);
 
-  const stopPTT = () => {
+  const stopPTT = useCallback(() => {
     if (!state.isPTTActive || !recorder) {
       console.error("Cannot stop PTT: PTT not active");
       return;
@@ -210,9 +210,9 @@ export const useConversation = (
     socket?.readyState === WebSocket.OPEN &&
       socket.send(stringify(stopMessage));
     logIfVerbose("PTT stopped");
-  };
+  }, [state.isPTTActive, recorder, vad, socket, logIfVerbose]);
 
-  const recordingDataListener = ({ data }: { data: Blob }) => {
+  const recordingDataListener = useCallback(({ data }: { data: Blob }) => {
     if (!state.isPTTActive || !isUserSpeakingRef.current) return;
 
     blobToBase64(data).then((base64Encoded: string | null) => {
@@ -224,7 +224,7 @@ export const useConversation = (
       socket?.readyState === WebSocket.OPEN &&
         socket.send(stringify(audioMessage));
     });
-  };
+  }, [state.isPTTActive, isUserSpeakingRef, socket]);
 
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
