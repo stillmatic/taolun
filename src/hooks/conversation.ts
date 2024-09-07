@@ -28,7 +28,6 @@ import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
 import { isSafari, isChrome, isFirefox } from "react-device-detect";
 import { Buffer } from "buffer";
 import { MicVAD, RealTimeVADOptions } from "@ricky0123/vad-web";
-import { log } from "console";
 
 const VOCODE_API_URL = "api.vocode.dev";
 const DEFAULT_CHUNK_SIZE = 2048;
@@ -36,6 +35,89 @@ const DEFAULT_CHUNK_SIZE = 2048;
 const audioContext = new AudioContext();
 const audioAnalyser = audioContext.createAnalyser();
 let nextStartTime = audioContext.currentTime;
+
+type ConversationState = {
+  status: ConversationStatus;
+  error: Error | undefined;
+  active: boolean;
+  isPTTActive: boolean;
+  currentSpeaker: CurrentSpeaker;
+  transcripts: Transcript[];
+};
+
+type ConversationAction =
+  | { type: "SET_STATUS"; payload: ConversationStatus }
+  | { type: "SET_ERROR"; payload: Error | undefined }
+  | { type: "SET_ACTIVE"; payload: boolean }
+  | { type: "TOGGLE_ACTIVE" }
+  | { type: "SET_PTT_ACTIVE"; payload: boolean }
+  | { type: "SET_CURRENT_SPEAKER"; payload: CurrentSpeaker }
+  | { type: "ADD_TRANSCRIPT"; payload: Transcript }
+  | { type: "UPDATE_LAST_TRANSCRIPT"; payload: string }
+  | { type: "UPDATE_TRANSCRIPTS"; payload: Transcript };
+
+
+const conversationReducer = (
+  state: ConversationState,
+  action: ConversationAction
+): ConversationState => {
+  switch (action.type) {
+    case "SET_STATUS":
+      return { ...state, status: action.payload };
+    case "SET_ERROR":
+      return { ...state, error: action.payload };
+    case "SET_ACTIVE":
+      return { ...state, active: action.payload };
+    case "TOGGLE_ACTIVE":
+      return { ...state, active: !state.active };
+    case "SET_PTT_ACTIVE":
+      return { ...state, isPTTActive: action.payload };
+    case "SET_CURRENT_SPEAKER":
+      return { ...state, currentSpeaker: action.payload };
+    case "ADD_TRANSCRIPT":
+      return { ...state, transcripts: [...state.transcripts, action.payload] };
+    case "UPDATE_LAST_TRANSCRIPT":
+      const updatedTranscripts = [...state.transcripts];
+      const lastTranscript = updatedTranscripts.pop();
+      if (lastTranscript) {
+        updatedTranscripts.push({
+          ...lastTranscript,
+          text: lastTranscript.text + " " + action.payload,
+        });
+      }
+      return { ...state, transcripts: updatedTranscripts };
+      case 'UPDATE_TRANSCRIPTS':
+        const newTranscripts = [...state.transcripts];
+        const lastTranscript = newTranscripts[newTranscripts.length - 1];
+  
+        if (lastTranscript && lastTranscript.sender === action.payload.sender) {
+          // Update the last transcript if the sender is the same
+          newTranscripts[newTranscripts.length - 1] = {
+            ...lastTranscript,
+            text: lastTranscript.text + " " + action.payload.text,
+            timestamp: action.payload.timestamp,
+          };
+        } else {
+          // Add a new transcript if the sender is different or there are no transcripts
+          newTranscripts.push(action.payload);
+        }
+  
+        return { ...state, transcripts: newTranscripts };
+    default:
+      return state;
+  }
+};
+
+const initialState: ConversationState = {
+  status: "idle",
+  error: undefined,
+  active: true,
+  isPTTActive: false,
+  currentSpeaker: "none",
+  transcripts: [],
+};
+
+const [state, dispatch] = React.useReducer(conversationReducer, initialState);
 
 export const useConversation = (
   config: ConversationConfig | SelfHostedConversationConfig
@@ -54,21 +136,21 @@ export const useConversation = (
   transcripts: Transcript[];
   currentSpeaker: CurrentSpeaker;
 } => {
-  const [currentSpeaker, setCurrentSpeaker] =
-    React.useState<CurrentSpeaker>("none");
   const [recorder, setRecorder] = React.useState<IMediaRecorder>();
   const [socket, setSocket] = React.useState<WebSocket>();
-  const [status, setStatus] = React.useState<ConversationStatus>("idle");
-  const [error, setError] = React.useState<Error>();
-  const [transcripts, setTranscripts] = React.useState<Transcript[]>([]);
-  const [active, setActive] = React.useState(true);
-  const [isPTTActive, setIsPTTActive] = React.useState(false);
-  const toggleActive = () => setActive(!active);
   const [audioStream, setAudioStream] = React.useState<MediaStream>();
   const totalDurationRef = React.useRef(0);
   const [vad, setVad] = React.useState<MicVAD | null>(null);
   const [userSpeakingBool, setUserSpeakingBool] = React.useState(false);
-  
+
+  const toggleActive = () => dispatch({ type: "TOGGLE_ACTIVE" });
+  const setActive = (active: boolean) => dispatch({ type: "SET_ACTIVE", payload: active });
+  const setIsPTTActive = (isPTTActive: boolean) => dispatch({ type: "SET_PTT_ACTIVE", payload: isPTTActive });
+  const setCurrentSpeaker = (currentSpeaker: CurrentSpeaker) => dispatch({ type: "SET_CURRENT_SPEAKER", payload: currentSpeaker });
+  const setStatus = (status: ConversationStatus) => dispatch({ type: "SET_STATUS", payload: status });
+  const setError = (error: Error | undefined) => dispatch({ type: "SET_ERROR", payload: error });
+  const [state, dispatch] = React.useReducer(conversationReducer, initialState);
+
   const logIfVerbose = (...message: any[]) => {
     if (config.verbose) {
       console.log(message);
@@ -77,35 +159,35 @@ export const useConversation = (
 
   const [isUserSpeaking, updateIsUserSpeaking] = useReducer(
     (state: boolean, isSpeechProbability: number) => {
-      const newState = isSpeechProbability > 0.6; 
+      const newState = isSpeechProbability > 0.6;
       setUserSpeakingBool(newState);
       // logIfVerbose(`Speech probability: ${isSpeechProbability}, isUserSpeaking: ${newState}`);
       return newState;
     },
     false
-  )
+  );
 
-    // Create a ref to hold the latest isUserSpeaking value
-    const isUserSpeakingRef = useRef(isUserSpeaking);
+  // Create a ref to hold the latest isUserSpeaking value
+  const isUserSpeakingRef = useRef(isUserSpeaking);
 
-    // Update the ref whenever isUserSpeaking changes
-    useEffect(() => {
-      isUserSpeakingRef.current = isUserSpeaking;
-      logIfVerbose(`isUserSpeaking updated: ${isUserSpeaking}`);
-      if (isUserSpeaking) {
-        const vadStartMessage: VADStartedSpeakingMessage = {
-          type: "websocket_vad_started_speaking",
-        };
-        socket?.readyState === WebSocket.OPEN &&
-          socket.send(stringify(vadStartMessage));
-      } else {
-        const vadStopMessage: VADStoppedSpeakingMessage = {
-          type: "websocket_vad_stopped_speaking",
-        };
-        socket?.readyState === WebSocket.OPEN &&
-          socket.send(stringify(vadStopMessage));
-      }
-    }, [isUserSpeaking]);
+  // Update the ref whenever isUserSpeaking changes
+  useEffect(() => {
+    isUserSpeakingRef.current = isUserSpeaking;
+    logIfVerbose(`isUserSpeaking updated: ${isUserSpeaking}`);
+    if (isUserSpeaking) {
+      const vadStartMessage: VADStartedSpeakingMessage = {
+        type: "websocket_vad_started_speaking",
+      };
+      socket?.readyState === WebSocket.OPEN &&
+        socket.send(stringify(vadStartMessage));
+    } else {
+      const vadStopMessage: VADStoppedSpeakingMessage = {
+        type: "websocket_vad_stopped_speaking",
+      };
+      socket?.readyState === WebSocket.OPEN &&
+        socket.send(stringify(vadStopMessage));
+    }
+  }, [isUserSpeaking]);
 
   const startPTT = () => {
     if (status !== "connected" || !recorder || !socket) {
@@ -113,6 +195,7 @@ export const useConversation = (
       return;
     }
     logIfVerbose("Starting PTT");
+    
     setIsPTTActive(true);
     vad?.start();
     const startMessage: PttStartMessage = {
@@ -124,7 +207,7 @@ export const useConversation = (
   };
 
   const stopPTT = () => {
-    if (!isPTTActive || !recorder) {
+    if (!state.isPTTActive || !recorder) {
       console.error("Cannot stop PTT: PTT not active");
       return;
     }
@@ -140,8 +223,7 @@ export const useConversation = (
   };
 
   const recordingDataListener = ({ data }: { data: Blob }) => {
-    if (!isPTTActive) return;
-    if (!isPTTActive || !isUserSpeakingRef.current) return;
+    if (!state.isPTTActive || !isUserSpeakingRef.current) return;
 
     blobToBase64(data).then((base64Encoded: string | null) => {
       if (!base64Encoded) return;
@@ -154,12 +236,11 @@ export const useConversation = (
     });
   };
 
-
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
     if (!recorder || !socket || !vad) return;
-    if (status === "connected") {
-      if (active && isPTTActive) {
+    if (state.status === "connected") {
+      if (state.active && state.isPTTActive) {
         vad.start();
         recorder.addEventListener("dataavailable", recordingDataListener);
       } else {
@@ -172,22 +253,22 @@ export const useConversation = (
       vad.pause();
       recorder.removeEventListener("dataavailable", recordingDataListener);
     };
-  }, [recorder, socket, status, active, isPTTActive, vad]);
+  }, [recorder, socket, state.status, state.active, state.isPTTActive, vad]);
 
   // (Cinjon) TODO: This probably doesn't work correctly now.
   React.useEffect(() => {
     if (
-      currentSpeaker === "agent" &&
+      state.currentSpeaker === "agent" &&
       audioContext.currentTime > totalDurationRef.current
     ) {
       setCurrentSpeaker("user");
     } else if (
-      currentSpeaker === "user" &&
+      state.currentSpeaker === "user" &&
       audioContext.currentTime < totalDurationRef.current
     ) {
       setCurrentSpeaker("agent");
     }
-  }, [currentSpeaker, audioContext]);
+  }, [state.currentSpeaker, audioContext]);
 
   // accept wav audio from webpage
   React.useEffect(() => {
@@ -253,7 +334,7 @@ export const useConversation = (
     if (audioStream) {
       audioStream.getTracks().forEach((track) => track.stop());
     }
-    if (isPTTActive) {
+    if (state.isPTTActive) {
       stopPTT();
     }
     if (socket) {
@@ -371,27 +452,14 @@ export const useConversation = (
         setStatus("connected");
       } else if (message.type == "websocket_transcript") {
         const transcriptMsg = message as Transcript;
-        setTranscripts((prev) => {
-          const newArray = [...prev];
-          let last = newArray.pop();
-
-          if (last && last.sender === message.sender) {
-            newArray.push({
-              sender: transcriptMsg.sender,
-              text: last.text + " " + transcriptMsg.text,
-              timestamp: transcriptMsg.timestamp,
-            });
-          } else {
-            if (last) {
-              newArray.push(last);
-            }
-            newArray.push({
-              sender: transcriptMsg.sender,
-              text: transcriptMsg.text,
-              timestamp: transcriptMsg.timestamp,
-            });
-          }
-          return newArray;
+        
+        dispatch({
+          type: 'UPDATE_TRANSCRIPTS',
+          payload: {
+            sender: transcriptMsg.sender,
+            text: transcriptMsg.text,
+            timestamp: transcriptMsg.timestamp,
+          },
         });
       } else {
         console.error("Unknown message type", message.type);
@@ -399,7 +467,7 @@ export const useConversation = (
       }
     };
     socket.onclose = () => {
-      stopConversation(error);
+      stopConversation(state.error);
     };
     setSocket(socket);
 
@@ -479,22 +547,30 @@ export const useConversation = (
       ortConfig: (ort) => {
         ort.env.wasm.wasmPaths = {
           "ort-wasm-simd.wasm": "/ort-wasm-simd.wasm",
-        }
+        };
       },
       onFrameProcessed: (probs) => {
-        updateIsUserSpeaking(probs.isSpeech)
+        updateIsUserSpeaking(probs.isSpeech);
       },
       onSpeechStart: () => {
-        logIfVerbose("User started speaking", "userspeaking" + isUserSpeaking, active);
+        logIfVerbose(
+          "User started speaking",
+          "userspeaking" + isUserSpeaking,
+          state.active
+        );
       },
       onSpeechEnd: () => {
-        logIfVerbose("User stopped speaking", "userspeaking" + isUserSpeaking, active);
+        logIfVerbose(
+          "User stopped speaking",
+          "userspeaking" + isUserSpeaking,
+          state.active
+        );
       },
       onVADMisfire: () => {
         logIfVerbose("VAD misfire");
       },
     };
-    
+
     try {
       const newVad = await MicVAD.new(vadOptions);
       logIfVerbose("VAD initialized", vadOptions);
@@ -552,7 +628,7 @@ export const useConversation = (
     if ("transcriberConfig" in startMessage) {
       timeSlice = Math.round(
         (1000 * startMessage.transcriberConfig.chunkSize) /
-        startMessage.transcriberConfig.samplingRate
+          startMessage.transcriberConfig.samplingRate
       );
     } else if ("timeSlice" in config && config.timeSlice) {
       timeSlice = config.timeSlice;
@@ -583,18 +659,13 @@ export const useConversation = (
   }, [vad]);
 
   return {
-    status,
+    ...state,
     start: startConversation,
     stop: stopConversation,
-    startPTT: startPTT,
-    stopPTT: stopPTT,
-    isPTTActive: isPTTActive,
-    error,
-    toggleActive,
-    active,
-    setActive,
+    startPTT,
+    stopPTT,
+    toggleActive: () => dispatch({ type: 'TOGGLE_ACTIVE' }),
+    setActive: (active: boolean) => dispatch({ type: 'SET_ACTIVE', payload: active }),
     analyserNode: audioAnalyser,
-    transcripts,
-    currentSpeaker,
   };
 };

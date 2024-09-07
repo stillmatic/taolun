@@ -21,7 +21,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "tsc && vite build",
     "prepublish": "npm run build",
     "prepare": "npm run build"
   },
@@ -35,6 +35,7 @@
   "author": "Ajay Raj <ajay@vocode.dev>",
   "license": "MIT",
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.18",
     "extendable-media-recorder": "^9.2.9",
     "extendable-media-recorder-wav-encoder": "^7.0.113",
     "react-device-detect": "^2.2.3"
