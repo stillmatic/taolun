@@ -53,9 +53,7 @@ type ConversationAction =
   | { type: "SET_PTT_ACTIVE"; payload: boolean }
   | { type: "SET_CURRENT_SPEAKER"; payload: CurrentSpeaker }
   | { type: "ADD_TRANSCRIPT"; payload: Transcript }
-  | { type: "UPDATE_LAST_TRANSCRIPT"; payload: string }
   | { type: "UPDATE_TRANSCRIPTS"; payload: Transcript };
-
 
 const conversationReducer = (
   state: ConversationState,
@@ -76,33 +74,23 @@ const conversationReducer = (
       return { ...state, currentSpeaker: action.payload };
     case "ADD_TRANSCRIPT":
       return { ...state, transcripts: [...state.transcripts, action.payload] };
-    case "UPDATE_LAST_TRANSCRIPT":
-      const updatedTranscripts = [...state.transcripts];
-      const lastTranscript = updatedTranscripts.pop();
-      if (lastTranscript) {
-        updatedTranscripts.push({
+    case "UPDATE_TRANSCRIPTS":
+      const newTranscripts = [...state.transcripts];
+      const lastTranscript = newTranscripts[newTranscripts.length - 1];
+
+      if (lastTranscript && lastTranscript.sender === action.payload.sender) {
+        // Update the last transcript if the sender is the same
+        newTranscripts[newTranscripts.length - 1] = {
           ...lastTranscript,
-          text: lastTranscript.text + " " + action.payload,
-        });
+          text: lastTranscript.text + " " + action.payload.text,
+          timestamp: action.payload.timestamp,
+        };
+      } else {
+        // Add a new transcript if the sender is different or there are no transcripts
+        newTranscripts.push(action.payload);
       }
-      return { ...state, transcripts: updatedTranscripts };
-      case 'UPDATE_TRANSCRIPTS':
-        const newTranscripts = [...state.transcripts];
-        const lastTranscript = newTranscripts[newTranscripts.length - 1];
-  
-        if (lastTranscript && lastTranscript.sender === action.payload.sender) {
-          // Update the last transcript if the sender is the same
-          newTranscripts[newTranscripts.length - 1] = {
-            ...lastTranscript,
-            text: lastTranscript.text + " " + action.payload.text,
-            timestamp: action.payload.timestamp,
-          };
-        } else {
-          // Add a new transcript if the sender is different or there are no transcripts
-          newTranscripts.push(action.payload);
-        }
-  
-        return { ...state, transcripts: newTranscripts };
+
+      return { ...state, transcripts: newTranscripts };
     default:
       return state;
   }
@@ -116,8 +104,6 @@ const initialState: ConversationState = {
   currentSpeaker: "none",
   transcripts: [],
 };
-
-const [state, dispatch] = React.useReducer(conversationReducer, initialState);
 
 export const useConversation = (
   config: ConversationConfig | SelfHostedConversationConfig
@@ -143,12 +129,16 @@ export const useConversation = (
   const [vad, setVad] = React.useState<MicVAD | null>(null);
   const [userSpeakingBool, setUserSpeakingBool] = React.useState(false);
 
-  const toggleActive = () => dispatch({ type: "TOGGLE_ACTIVE" });
-  const setActive = (active: boolean) => dispatch({ type: "SET_ACTIVE", payload: active });
-  const setIsPTTActive = (isPTTActive: boolean) => dispatch({ type: "SET_PTT_ACTIVE", payload: isPTTActive });
-  const setCurrentSpeaker = (currentSpeaker: CurrentSpeaker) => dispatch({ type: "SET_CURRENT_SPEAKER", payload: currentSpeaker });
-  const setStatus = (status: ConversationStatus) => dispatch({ type: "SET_STATUS", payload: status });
-  const setError = (error: Error | undefined) => dispatch({ type: "SET_ERROR", payload: error });
+  const setActive = (active: boolean) =>
+    dispatch({ type: "SET_ACTIVE", payload: active });
+  const setIsPTTActive = (isPTTActive: boolean) =>
+    dispatch({ type: "SET_PTT_ACTIVE", payload: isPTTActive });
+  const setCurrentSpeaker = (currentSpeaker: CurrentSpeaker) =>
+    dispatch({ type: "SET_CURRENT_SPEAKER", payload: currentSpeaker });
+  const setStatus = (status: ConversationStatus) =>
+    dispatch({ type: "SET_STATUS", payload: status });
+  const setError = (error: Error | undefined) =>
+    dispatch({ type: "SET_ERROR", payload: error });
   const [state, dispatch] = React.useReducer(conversationReducer, initialState);
 
   const logIfVerbose = (...message: any[]) => {
@@ -190,12 +180,12 @@ export const useConversation = (
   }, [isUserSpeaking]);
 
   const startPTT = () => {
-    if (status !== "connected" || !recorder || !socket) {
+    if (state.status !== "connected" || !recorder || !socket) {
       console.error("Cannot start PTT: conversation not connected");
       return;
     }
     logIfVerbose("Starting PTT");
-    
+
     setIsPTTActive(true);
     vad?.start();
     const startMessage: PttStartMessage = {
@@ -452,9 +442,9 @@ export const useConversation = (
         setStatus("connected");
       } else if (message.type == "websocket_transcript") {
         const transcriptMsg = message as Transcript;
-        
+
         dispatch({
-          type: 'UPDATE_TRANSCRIPTS',
+          type: "UPDATE_TRANSCRIPTS",
           payload: {
             sender: transcriptMsg.sender,
             text: transcriptMsg.text,
@@ -664,8 +654,9 @@ export const useConversation = (
     stop: stopConversation,
     startPTT,
     stopPTT,
-    toggleActive: () => dispatch({ type: 'TOGGLE_ACTIVE' }),
-    setActive: (active: boolean) => dispatch({ type: 'SET_ACTIVE', payload: active }),
+    toggleActive: () => dispatch({ type: "TOGGLE_ACTIVE" }),
+    setActive: (active: boolean) =>
+      dispatch({ type: "SET_ACTIVE", payload: active }),
     analyserNode: audioAnalyser,
   };
 };

@@ -1,6 +1,6 @@
 {
   "name": "taolun",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "",
   "homepage": "https://amalgamated.tech",
   "repository": {
@@ -36,21 +36,21 @@
   "license": "MIT",
   "dependencies": {
     "@ricky0123/vad-web": "^0.0.18",
-    "extendable-media-recorder": "^9.2.9",
-    "extendable-media-recorder-wav-encoder": "^7.0.113",
+    "extendable-media-recorder": "^9.2.11",
+    "extendable-media-recorder-wav-encoder": "^7.0.115",
     "react-device-detect": "^2.2.3"
   },
   "devDependencies": {
-    "@types/node": "^20.14.13",
-    "@types/react": "^18.3.3",
+    "@types/node": "^20.16.5",
+    "@types/react": "^18.3.5",
     "buffer": "^6.0.3",
     "rollup-plugin-visualizer": "^5.12.0",
     "typescript": "^4.9.5",
-    "vite": "^4.0.0",
-    "vite-plugin-dts": "^2.0.0"
+    "vite": "^4.5.3",
+    "vite-plugin-dts": "^2.3.0"
   },
   "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0",
-    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }
