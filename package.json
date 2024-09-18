@@ -1,8 +1,8 @@
 {
   "name": "taolun",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "",
-  "homepage": "https://amalgamated.tech",
+  "homepage": "https://tincans.ai",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/stillmatic/taolun.git"

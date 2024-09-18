@@ -495,7 +495,7 @@ export const useConversation = (
       setAudioStream(currAudioStream);
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotAllowedError") {
-        alert(
+        console.log(
           "Allowlist this site at chrome://settings/content/microphone to talk to the bot."
         );
         const micError = new Error("Microphone access denied");
