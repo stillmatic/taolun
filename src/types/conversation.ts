@@ -26,6 +26,7 @@ export type ConversationConfig = {
   synthesizerConfig: Omit<SynthesizerConfig, "samplingRate" | "audioEncoding">;
   vocodeConfig: VocodeConfig;
   verbose?: boolean;
+  shouldUseVAD?: boolean;
 };
 
 export type SelfHostedConversationConfig = {
@@ -39,6 +40,7 @@ export type SelfHostedConversationConfig = {
   subscribeTranscript?: boolean;
   verbose?: boolean;
   metadata?: Record<string, string>;
+  shouldUseVAD?: boolean;
 
   firstMessage?: string;
   systemPrompt?: string;

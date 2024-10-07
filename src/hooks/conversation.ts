@@ -149,6 +149,9 @@ export const useConversation = (
 
   const [isUserSpeaking, updateIsUserSpeaking] = useReducer(
     (state: boolean, isSpeechProbability: number) => {
+      if (!config.shouldUseVAD) {
+        return true;
+      }
       const newState = isSpeechProbability > 0.6;
       setUserSpeakingBool(newState);
       // logIfVerbose(`Speech probability: ${isSpeechProbability}, isUserSpeaking: ${newState}`);
@@ -187,7 +190,9 @@ export const useConversation = (
     logIfVerbose("Starting PTT");
 
     setIsPTTActive(true);
-    vad?.start();
+    if (config.shouldUseVAD) {
+      vad?.start();
+    }
     const startMessage: PttStartMessage = {
       type: "websocket_ptt_start",
     };
@@ -201,7 +206,9 @@ export const useConversation = (
       console.error("Cannot stop PTT: PTT not active");
       return;
     }
-    vad?.pause();
+    if (config.shouldUseVAD) {
+      vad?.pause();
+    }
     logIfVerbose("Stopping PTT");
     setIsPTTActive(false);
     const stopMessage: PttStopMessage = {
@@ -212,35 +219,44 @@ export const useConversation = (
     logIfVerbose("PTT stopped");
   }, [state.isPTTActive, recorder, vad, socket, logIfVerbose]);
 
-  const recordingDataListener = useCallback(({ data }: { data: Blob }) => {
-    if (!state.isPTTActive || !isUserSpeakingRef.current) return;
+  const recordingDataListener = useCallback(
+    ({ data }: { data: Blob }) => {
+      if (!state.isPTTActive || !isUserSpeakingRef.current) return;
 
-    blobToBase64(data).then((base64Encoded: string | null) => {
-      if (!base64Encoded) return;
-      const audioMessage: AudioMessage = {
-        type: "websocket_audio",
-        data: base64Encoded,
-      };
-      socket?.readyState === WebSocket.OPEN &&
-        socket.send(stringify(audioMessage));
-    });
-  }, [state.isPTTActive, isUserSpeakingRef, socket]);
+      blobToBase64(data).then((base64Encoded: string | null) => {
+        if (!base64Encoded) return;
+        const audioMessage: AudioMessage = {
+          type: "websocket_audio",
+          data: base64Encoded,
+        };
+        socket?.readyState === WebSocket.OPEN &&
+          socket.send(stringify(audioMessage));
+      });
+    },
+    [state.isPTTActive, isUserSpeakingRef, socket]
+  );
 
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
     if (!recorder || !socket || !vad) return;
     if (state.status === "connected") {
       if (state.active && state.isPTTActive) {
-        vad.start();
+        if (config.shouldUseVAD) {
+          vad.start();
+        }
         recorder.addEventListener("dataavailable", recordingDataListener);
       } else {
-        vad.pause();
+        if (config.shouldUseVAD) {
+          vad.pause();
+        }
         recorder.removeEventListener("dataavailable", recordingDataListener);
       }
     }
 
     return () => {
-      vad.pause();
+      if (config.shouldUseVAD) {
+        vad.pause();
+      }
       recorder.removeEventListener("dataavailable", recordingDataListener);
     };
   }, [recorder, socket, state.status, state.active, state.isPTTActive, vad]);
@@ -532,45 +548,47 @@ export const useConversation = (
     logIfVerbose("Output audio metadata", inputAudioMetadata);
 
     // initialize VAD
-    const vadOptions: Partial<RealTimeVADOptions> = {
-      stream: currAudioStream,
-      ortConfig: (ort) => {
-        ort.env.wasm.wasmPaths = {
-          "ort-wasm-simd.wasm": "/ort-wasm-simd.wasm",
-        };
-      },
-      onFrameProcessed: (probs) => {
-        updateIsUserSpeaking(probs.isSpeech);
-      },
-      onSpeechStart: () => {
-        logIfVerbose(
-          "User started speaking",
-          "userspeaking" + isUserSpeaking,
-          state.active
-        );
-      },
-      onSpeechEnd: () => {
-        logIfVerbose(
-          "User stopped speaking",
-          "userspeaking" + isUserSpeaking,
-          state.active
-        );
-      },
-      onVADMisfire: () => {
-        logIfVerbose("VAD misfire");
-      },
-    };
+    if (config.shouldUseVAD) {
+      const vadOptions: Partial<RealTimeVADOptions> = {
+        stream: currAudioStream,
+        ortConfig: (ort) => {
+          ort.env.wasm.wasmPaths = {
+            "ort-wasm-simd.wasm": "/ort-wasm-simd.wasm",
+          };
+        },
+        onFrameProcessed: (probs) => {
+          updateIsUserSpeaking(probs.isSpeech);
+        },
+        onSpeechStart: () => {
+          logIfVerbose(
+            "User started speaking",
+            "userspeaking" + isUserSpeaking,
+            state.active
+          );
+        },
+        onSpeechEnd: () => {
+          logIfVerbose(
+            "User stopped speaking",
+            "userspeaking" + isUserSpeaking,
+            state.active
+          );
+        },
+        onVADMisfire: () => {
+          logIfVerbose("VAD misfire");
+        },
+      };
 
-    try {
-      const newVad = await MicVAD.new(vadOptions);
-      logIfVerbose("VAD initialized", vadOptions);
-      setVad(newVad);
-      vad?.start();
-      logIfVerbose("VAD started");
-    } catch (error) {
-      console.error("Error initializing VAD:", error);
-      stopConversation(error as Error);
-      return;
+      try {
+        const newVad = await MicVAD.new(vadOptions);
+        logIfVerbose("VAD initialized", vadOptions);
+        setVad(newVad);
+        vad?.start();
+        logIfVerbose("VAD started");
+      } catch (error) {
+        console.error("Error initializing VAD:", error);
+        stopConversation(error as Error);
+        return;
+      }
     }
 
     let startMessage: StartMessage | AudioConfigStartMessage;
