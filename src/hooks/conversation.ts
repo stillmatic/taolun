@@ -28,6 +28,7 @@ import { DeepgramTranscriberConfig, TranscriberConfig } from "../types";
 import { isSafari, isChrome, isFirefox } from "react-device-detect";
 import { Buffer } from "buffer";
 import { MicVAD, RealTimeVADOptions } from "@ricky0123/vad-web";
+import { log } from "console";
 
 const VOCODE_API_URL = "api.vocode.dev";
 const DEFAULT_CHUNK_SIZE = 2048;
@@ -149,9 +150,6 @@ export const useConversation = (
 
   const [isUserSpeaking, updateIsUserSpeaking] = useReducer(
     (state: boolean, isSpeechProbability: number) => {
-      if (!config.shouldUseVAD) {
-        return true;
-      }
       const newState = isSpeechProbability > 0.6;
       setUserSpeakingBool(newState);
       // logIfVerbose(`Speech probability: ${isSpeechProbability}, isUserSpeaking: ${newState}`);
@@ -180,7 +178,7 @@ export const useConversation = (
       socket?.readyState === WebSocket.OPEN &&
         socket.send(stringify(vadStopMessage));
     }
-  }, [isUserSpeaking]);
+  }, [isUserSpeaking, config.shouldUseVAD]);
 
   const startPTT = useCallback(() => {
     if (state.status !== "connected" || !recorder || !socket) {
@@ -221,7 +219,8 @@ export const useConversation = (
 
   const recordingDataListener = useCallback(
     ({ data }: { data: Blob }) => {
-      if (!state.isPTTActive || !isUserSpeakingRef.current) return;
+      const shouldPassVAD = !config.shouldUseVAD || isUserSpeakingRef.current;
+      if (!state.isPTTActive || !shouldPassVAD) return;
 
       blobToBase64(data).then((base64Encoded: string | null) => {
         if (!base64Encoded) return;
@@ -238,16 +237,23 @@ export const useConversation = (
 
   // once the conversation is connected, stream the microphone audio into the socket
   React.useEffect(() => {
-    if (!recorder || !socket || !vad) return;
+    if (!recorder || !socket) {
+      logIfVerbose("Recorder or socket not initialized");
+      return;
+    }
+    if (config.shouldUseVAD && !vad) {
+      logIfVerbose("VAD required and not initialized");
+      return;
+    }
     if (state.status === "connected") {
       if (state.active && state.isPTTActive) {
         if (config.shouldUseVAD) {
-          vad.start();
+          vad?.start();
         }
         recorder.addEventListener("dataavailable", recordingDataListener);
       } else {
         if (config.shouldUseVAD) {
-          vad.pause();
+          vad?.pause();
         }
         recorder.removeEventListener("dataavailable", recordingDataListener);
       }
@@ -255,7 +261,7 @@ export const useConversation = (
 
     return () => {
       if (config.shouldUseVAD) {
-        vad.pause();
+        vad?.pause();
       }
       recorder.removeEventListener("dataavailable", recordingDataListener);
     };
@@ -652,6 +658,7 @@ export const useConversation = (
       console.error("Recorder already recording");
       return;
     }
+
     try {
       recorderToUse.start(timeSlice);
     } catch (error) {
