@@ -2,19 +2,19 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
-import { visualizer } from 'rollup-plugin-visualizer';
+// import { visualizer } from 'rollup-plugin-visualizer';
 export default defineConfig({
     plugins: [
         react(),
         dts({
             insertTypesEntry: true,
         }),
-        visualizer({
-            filename: 'dist/stats.html',
-            open: true,
-            gzipSize: true,
-            brotliSize: true,
-        }),
+        // visualizer({
+        //     filename: 'dist/stats.html',
+        //     open: true,
+        //     gzipSize: true,
+        //     brotliSize: true,
+        // }),
     ],
     build: {
         lib: {
